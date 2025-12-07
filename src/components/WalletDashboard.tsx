@@ -3,10 +3,15 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { ethers } from "ethers";
 import ReactModal from "react-modal";
+
 import StakingPanel from "./StakingPanel";
 import AIValuation from "./AIValuation";
 import RecentActivity from "./RecentActivity";
 import SettlementPanel from "./SettlementPanel";
+import OraclePanel from "./OraclePanel";
+import ValidatorAnalytics from "./ValidatorAnalytics";
+import OracleIntegrityPanel from "./OracleIntegrityPanel";
+import PortfolioSimulator from "./PortfolioSimulator";
 
 const QIEDEX_TOKEN_ADDRESS = "0x5ce8bEccFC859f5d923b14cFEB7c9dCd3FF9551E";
 const QIEDEX_TOKEN_ABI = [
@@ -18,15 +23,13 @@ const QIEDEX_TOKEN_ABI = [
 export default function WalletDashboard() {
   const [provider, setProvider] = useState<ethers.BrowserProvider | null>(null);
   const [signer, setSigner] = useState<ethers.Signer | null>(null);
-  const [account, setAccount] = useState<string>("");
-  const [chainId, setChainId] = useState<number>(0);
+  const [account, setAccount] = useState("");
+  const [chainId, setChainId] = useState(0);
 
-  const [balance, setBalance] = useState<number>(0); // QIE balance
-  const [pmtBalance, setPmtBalance] = useState<number>(0); // PMT balance as number
+  const [balance, setBalance] = useState(0);
+  const [pmtBalance, setPmtBalance] = useState(0);
 
-  const [tokenContract, setTokenContract] = useState<ethers.Contract | null>(
-    null
-  );
+  const [tokenContract, setTokenContract] = useState<ethers.Contract | null>(null);
 
   const [loading, setLoading] = useState({
     connect: false,
@@ -37,36 +40,42 @@ export default function WalletDashboard() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [modalMessage, setModalMessage] = useState("");
 
-  // react-modal init
+  // Init modal
   useEffect(() => {
     if (typeof document !== "undefined") {
       ReactModal.setAppElement(document.body);
     }
   }, []);
 
+  /* -----------------------------------------
+   * CONNECT WALLET
+   * ----------------------------------------- */
   const connectWallet = useCallback(async () => {
     const anyWindow: any = window;
     if (!anyWindow.ethereum) {
-      alert("QIE / MetaMask wallet not found");
+      alert("QIE-compatible wallet not found.");
       return;
     }
+
     try {
       setLoading((p) => ({ ...p, connect: true }));
+
       const browserProvider = new ethers.BrowserProvider(anyWindow.ethereum);
       await browserProvider.send("eth_requestAccounts", []);
-      const s = await browserProvider.getSigner();
-      const addr = await s.getAddress();
+
+      const signer = await browserProvider.getSigner();
+      const addr = await signer.getAddress();
       const network = await browserProvider.getNetwork();
 
       setProvider(browserProvider);
-      setSigner(s);
+      setSigner(signer);
       setAccount(addr);
       setChainId(Number(network.chainId));
 
       anyWindow.ethereum.on("accountsChanged", () => window.location.reload());
       anyWindow.ethereum.on("chainChanged", () => window.location.reload());
-    } catch (err) {
-      console.error(err);
+    } catch (error) {
+      console.error(error);
       setModalMessage("Failed to connect wallet");
       setIsModalOpen(true);
     } finally {
@@ -74,10 +83,13 @@ export default function WalletDashboard() {
     }
   }, []);
 
-  // load balances
+  /* -----------------------------------------
+   * LOAD BALANCES
+   * ----------------------------------------- */
   useEffect(() => {
-    const loadBalances = async () => {
-      if (!provider || !account) return;
+    if (!provider || !account) return;
+
+    const load = async () => {
       const bal = await provider.getBalance(account);
       setBalance(Number(ethers.formatEther(bal)));
 
@@ -86,19 +98,23 @@ export default function WalletDashboard() {
         setPmtBalance(Number(ethers.formatEther(tb)));
       }
     };
-    loadBalances();
+    load();
   }, [provider, account, tokenContract]);
 
-  // init token contract
+  /* -----------------------------------------
+   * INIT TOKEN CONTRACT
+   * ----------------------------------------- */
   useEffect(() => {
-  if (signer) {
-    setTokenContract(
-      new ethers.Contract(QIEDEX_TOKEN_ADDRESS, QIEDEX_TOKEN_ABI, signer)
-    );
-  }
-}, [signer]);
+    if (signer) {
+      setTokenContract(
+        new ethers.Contract(QIEDEX_TOKEN_ADDRESS, QIEDEX_TOKEN_ABI, signer)
+      );
+    }
+  }, [signer]);
 
-
+  /* -----------------------------------------
+   * APPROVE & TRANSFER DEMO ACTIONS
+   * ----------------------------------------- */
   const approvePMT = async () => {
     if (!tokenContract) return;
     try {
@@ -109,8 +125,7 @@ export default function WalletDashboard() {
       );
       await tx.wait();
       setModalMessage("✅ PMT tokens approved");
-    } catch (err) {
-      console.error(err);
+    } catch {
       setModalMessage("❌ Approval failed");
     } finally {
       setIsModalOpen(true);
@@ -123,13 +138,12 @@ export default function WalletDashboard() {
     try {
       setLoading((p) => ({ ...p, transfer: true }));
       const tx = await tokenContract.transfer(
-        "0x5ce8bEccFC859f5d923b14cFEB7c9dCd3FF9551E",
+        QIEDEX_TOKEN_ADDRESS,
         ethers.parseEther("10")
       );
       await tx.wait();
       setModalMessage("✅ PMT transferred");
-    } catch (err) {
-      console.error(err);
+    } catch {
       setModalMessage("❌ Transfer failed");
     } finally {
       setIsModalOpen(true);
@@ -139,193 +153,115 @@ export default function WalletDashboard() {
 
   const closeModal = () => setIsModalOpen(false);
 
-  // callback from StakingPanel when local PMT changes
-  const handleLocalPmtChange = (newBalance: number) => {
-    setPmtBalance(newBalance);
-  };
+  const handleLocalPmtChange = (val: number) => setPmtBalance(val);
 
+  /* -----------------------------------------
+   *        DASHBOARD LAYOUT FIXED 💎
+   * ----------------------------------------- */
   return (
     <div className="qie-layout">
-      {/* Header */}
+      {/* HEADER */}
       <header className="qie-header">
         <h1 className="qie-header-title">QIE PredictX</h1>
         <p className="qie-header-subtitle">
-          On-chain AI valuation & prediction registry on QIE Testnet
+          On-chain AI valuation & prediction registry for the QIE ecosystem
         </p>
       </header>
 
-      {/* Wallet card */}
-      <div className="qie-card-glass qie-mt-md">
+      {/* WALLET CARD */}
+      <div className="qie-card-glass qie-animate-slide-up">
         {!account ? (
           <div style={{ textAlign: "center" }}>
-            <p
-              style={{
-                fontSize: "1.05rem",
-                fontWeight: 600,
-                marginBottom: "10px",
-              }}
-            >
-              Connect your QIE wallet
+            <p style={{ fontSize: "1.05rem", fontWeight: 600, marginBottom: "10px" }}>
+              Connect your wallet
             </p>
-            <p className="qie-text-muted qie-mt-sm">
-              Start interacting with AI valuations, staking and on-chain
-              predictions.
+            <p className="qie-text-muted">
+              Access staking, AI valuations, on-chain predictions, and analytics.
             </p>
+
             <button
-              onClick={connectWallet}
-              disabled={loading.connect}
               className="qie-btn qie-btn-primary qie-btn-full qie-mt-lg"
+              onClick={connectWallet}
             >
               {loading.connect ? "Connecting..." : "🔗 Connect Wallet"}
             </button>
           </div>
         ) : (
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "minmax(0, 1.4fr) minmax(0, 1.2fr) auto",
-              gap: "18px",
-              alignItems: "center",
-            }}
-          >
+          <div className="qie-wallet-grid">
+            {/* Wallet Address */}
             <div>
-              <div
-                style={{
-                  fontWeight: 600,
-                  fontSize: "0.9rem",
-                  color: "#6b7280",
-                  marginBottom: "4px",
-                }}
-              >
-                Connected wallet
-              </div>
-              <div
-                style={{
-                  fontFamily: "monospace",
-                  fontSize: "1.05rem",
-                  color: "#111827",
-                }}
-              >
+              <div className="wallet-label">Connected wallet</div>
+              <div className="wallet-address">
                 {account.slice(0, 6)}...{account.slice(-4)}
               </div>
-              <div
-                style={{
-                  marginTop: "4px",
-                  fontSize: "0.8rem",
-                  color: "#6b7280",
-                }}
-              >
-                Chain ID: {chainId}
-              </div>
+              <div className="wallet-chain">Chain ID: {chainId}</div>
             </div>
 
-            <div
-              style={{
-                display: "grid",
-                gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
-                gap: "12px",
-              }}
-            >
+            {/* Balances */}
+            <div className="qie-balance-grid">
               <div>
-                <div
-                  style={{
-                    fontSize: "0.78rem",
-                    textTransform: "uppercase",
-                    letterSpacing: "0.08em",
-                    color: "#9ca3af",
-                    marginBottom: "4px",
-                  }}
-                >
-                  QIE Balance
-                </div>
-                <div
-                  style={{
-                    fontSize: "1.25rem",
-                    fontWeight: 700,
-                    color: "#111827",
-                  }}
-                >
-                  {balance.toFixed(4)} QIE
-                </div>
+                <div className="wallet-sub-label">QIE Balance</div>
+                <div className="wallet-balance">{balance.toFixed(4)} QIE</div>
               </div>
+
               <div>
-                <div
-                  style={{
-                    fontSize: "0.78rem",
-                    textTransform: "uppercase",
-                    letterSpacing: "0.08em",
-                    color: "#9ca3af",
-                    marginBottom: "4px",
-                  }}
-                >
-                  PMT Tokens
-                </div>
-                <div
-                  style={{
-                    fontSize: "1.25rem",
-                    fontWeight: 700,
-                    color: "#16a34a",
-                  }}
-                >
+                <div className="wallet-sub-label">PMT Tokens</div>
+                <div className="wallet-balance" style={{ color: "#22d3ee" }}>
                   {pmtBalance.toFixed(4)} PMT
                 </div>
               </div>
             </div>
 
-            <div
-              style={{
-                display: "flex",
-                flexDirection: "column",
-                gap: "8px",
-                minWidth: "190px",
-              }}
-            >
+            {/* Actions */}
+            <div className="wallet-actions">
               <button
-                onClick={approvePMT}
-                disabled={loading.approve || !tokenContract}
                 className="qie-btn qie-btn-secondary"
+                disabled={loading.approve}
+                onClick={approvePMT}
               >
-                {loading.approve ? "Approving..." : "✅ Approve"}
+                {loading.approve ? "Approving..." : "Approve"}
               </button>
+
               <button
-                onClick={transferPMT}
-                disabled={loading.transfer || !tokenContract}
                 className="qie-btn qie-btn-primary"
+                disabled={loading.transfer}
+                onClick={transferPMT}
               >
-                {loading.transfer ? "Sending..." : "💸 Transfer"}
+                {loading.transfer ? "Sending..." : "Transfer"}
               </button>
             </div>
           </div>
         )}
       </div>
 
-      {/* Main panels */}
+      {/* -----------------------------------------
+       * MAIN DASHBOARD GRID LAYOUT
+       * ----------------------------------------- */}
       {account && (
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "minmax(0, 2fr) minmax(0, 1.2fr)",
-            gap: "20px",
-            marginTop: "20px",
-          }}
-        >
-          <div>
+        <div className="qie-dashboard-grid">
+          {/* LEFT COLUMN */}
+          <div className="qie-col">
             <AIValuation signer={signer} />
+            <OracleIntegrityPanel />
+            <ValidatorAnalytics />
           </div>
-          <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
-            <StakingPanel
-  signer={signer}
-  pmtBalance={pmtBalance}
-  onBalanceChange={handleLocalPmtChange}
-/>
- <SettlementPanel signer={signer} />
 
+          {/* RIGHT COLUMN */}
+          <div className="qie-col">
+            <PortfolioSimulator />
+            <StakingPanel
+              signer={signer}
+              pmtBalance={pmtBalance}
+              onBalanceChange={handleLocalPmtChange}
+            />
+            <SettlementPanel signer={signer} />
+            <OraclePanel signer={signer} />
             <RecentActivity walletAddress={account} />
           </div>
         </div>
       )}
 
-      {/* Modal */}
+      {/* MODAL */}
       <ReactModal
         isOpen={isModalOpen}
         onRequestClose={closeModal}
@@ -334,13 +270,8 @@ export default function WalletDashboard() {
       >
         <div style={{ textAlign: "center" }}>
           <h3 style={{ fontSize: "1.3rem", marginBottom: "10px" }}>Status</h3>
-          <p style={{ fontSize: "0.95rem", marginBottom: "18px" }}>
-            {modalMessage}
-          </p>
-          <button
-            onClick={closeModal}
-            className="qie-btn qie-btn-primary qie-btn-full"
-          >
+          <p style={{ marginBottom: "16px" }}>{modalMessage}</p>
+          <button onClick={closeModal} className="qie-btn qie-btn-primary qie-btn-full">
             Close
           </button>
         </div>

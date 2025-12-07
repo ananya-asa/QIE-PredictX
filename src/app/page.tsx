@@ -10,7 +10,7 @@ export default function Home() {
   return (
     <QueryClientProvider client={queryClient}>
       <div className="qie-app-root">
-        <div className="qie-page-shell">
+        <div className="qie-page-shell qie-animate-fade-in">
           <WalletDashboard />
         </div>
       </div>
