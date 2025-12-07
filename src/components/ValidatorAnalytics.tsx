@@ -622,7 +622,7 @@ const ValidatorAnalytics: React.FC = () => {
         {/* Pitch Line */}
         {!loading && validators.length > 0 && (
           <p className="mt-1 text-[10px] text-slate-500">
-            🧠 <b className="text-slate-300">How to sell this to judges:</b> “PredictX is
+            🧠 <b className="text-slate-300"></b> “PredictX is
             powered by a transparent validator analytics layer that quantifies decentralization,
             stake concentration, and validator trust.”
           </p>

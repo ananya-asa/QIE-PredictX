@@ -7,65 +7,100 @@ type OraclePanelProps = {
   signer: ethers.Signer | null;
 };
 
-const ORACLE_ADDRESS = "0x26e7C8a46C89404375ef53D8b6FD4748675e3897";
+/* -------------------------------------------------------------
+   IMPORTANT: USE THE SAME CONTRACT AS AIValuation.tsx
+-------------------------------------------------------------- */
+
+const SETTLEMENT_ADDRESS = "0x4A2B8014a6933F108D917CEBEA6D6455D3D234Ab";
 
 const ORACLE_ABI = [
-  "function setAssetTrueValue(string assetId, uint256 value) external",
-  "function assetTrueValue(string assetId) view returns (uint256)",
+  "function setOracleValue(string assetId, uint256 value) external",
+  "function oracleValue(string assetId) view returns (uint256)",
 ];
 
 const OraclePanel: React.FC<OraclePanelProps> = ({ signer }) => {
   const [assetId, setAssetId] = useState("Apartment Downtown #5");
   const [trueValue, setTrueValue] = useState("1250000");
-  const [currentOnChain, setCurrentOnChain] = useState<string | null>(null);
+  const [onChainValue, setOnChainValue] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
-  const [mode, setMode] = useState<"blockchain" | "simulation">("blockchain");
 
+  /* -------------------------------------------------------------
+     SET TRUE VALUE ON-CHAIN
+  -------------------------------------------------------------- */
   const handleSetTrueValue = async () => {
     if (!signer) {
-      alert("Connect your wallet first");
+      alert("Connect your wallet first.");
       return;
     }
 
-    setLoading(true);
     const num = Number(trueValue);
-    const valueStr = Math.floor(num).toString();
-
-    try {
-      if (mode === "simulation") throw new Error("Simulating");
-
-      const contract = new ethers.Contract(ORACLE_ADDRESS, ORACLE_ABI, signer);
-      const parsed = ethers.parseUnits(valueStr, 18);
-
-      const tx = await contract.setAssetTrueValue(assetId, parsed, {
-        gasLimit: 2500000,
-      });
-      await tx.wait();
-      alert("✅ Oracle updated on QIE Testnet");
-    } catch {
-      setMode("simulation");
-      await new Promise((r) => setTimeout(r, 1200));
-      alert("⚠️ Using simulation mode for demo");
+    if (isNaN(num) || num <= 0) {
+      alert("Enter a valid true value.");
+      return;
     }
 
-    setCurrentOnChain(valueStr);
+    try {
+      setLoading(true);
+
+      const contract = new ethers.Contract(
+        SETTLEMENT_ADDRESS,
+        ORACLE_ABI,
+        signer
+      );
+
+      // convert to 18-decimals
+      const parsedValue = ethers.parseUnits(num.toString(), 18);
+
+      // submit on-chain tx
+      const tx = await contract.setOracleValue(assetId, parsedValue);
+      await tx.wait();
+
+      alert("✅ Oracle updated successfully!");
+
+      // refresh the value
+      const chainValue = await contract.oracleValue(assetId);
+      setOnChainValue(ethers.formatUnits(chainValue, 18));
+
+    } catch (err) {
+      console.error("Oracle update error:", err);
+      alert("❌ Failed to update oracle value");
+    }
+
     setLoading(false);
+  };
+
+  /* -------------------------------------------------------------
+     FETCH ACTIVE VALUE
+  -------------------------------------------------------------- */
+  const fetchCurrentValue = async () => {
+    if (!signer) return;
+
+    try {
+      const contract = new ethers.Contract(
+        SETTLEMENT_ADDRESS,
+        ORACLE_ABI,
+        signer
+      );
+
+      const chainValue = await contract.oracleValue(assetId);
+      setOnChainValue(ethers.formatUnits(chainValue, 18));
+    } catch (err) {
+      console.error("Fetch error:", err);
+    }
   };
 
   return (
     <div className="qie-card-glass qie-animate-slide-up">
       <div className="qie-card-header">
-        <h3 className="qie-card-title">📡 Oracle Admin</h3>
-        <span className="qie-badge qie-badge-soft">
-          {mode === "simulation" ? "Simulated" : "On-chain"}
-        </span>
+        <h3 className="qie-card-title">📡 Oracle Admin · True Value Setter</h3>
+        <span className="qie-badge qie-badge-soft">On-chain</span>
       </div>
 
       <p className="qie-text-muted">
-        Define “true value” for assets — used to grade AI predictions.
+        Set the blockchain “true value” used to settle predictions & calculate accuracy.
       </p>
 
-      {/* Asset ID */}
+      {/* Asset */}
       <div className="qie-mt-md">
         <label className="qie-field-label">Asset ID</label>
         <input
@@ -87,6 +122,7 @@ const OraclePanel: React.FC<OraclePanelProps> = ({ signer }) => {
         />
       </div>
 
+      {/* Submit button */}
       <button
         onClick={handleSetTrueValue}
         disabled={loading}
@@ -95,11 +131,24 @@ const OraclePanel: React.FC<OraclePanelProps> = ({ signer }) => {
         {loading ? "Broadcasting…" : "📡 Set True Value"}
       </button>
 
-      {currentOnChain && (
-        <div className="qie-card-glass qie-animate-fade-in qie-mt-md" style={{ textAlign: "center", padding: "12px" }}>
-          <p className="qie-text-muted">Active Oracle Price</p>
+      {/* Fetch button */}
+      <button
+        onClick={fetchCurrentValue}
+        disabled={loading}
+        className="qie-btn qie-btn-ghost qie-btn-full qie-mt-md"
+      >
+        🔄 Refresh On-Chain Value
+      </button>
+
+      {/* Display active oracle value */}
+      {onChainValue !== null && (
+        <div
+          className="qie-card-glass qie-animate-fade-in qie-mt-md"
+          style={{ textAlign: "center", padding: "12px" }}
+        >
+          <p className="qie-text-muted">Current Oracle Value</p>
           <p style={{ fontSize: "1.6rem", fontWeight: 700 }}>
-            ${Number(currentOnChain).toLocaleString()}
+            ${Number(onChainValue).toLocaleString()}
           </p>
         </div>
       )}
