@@ -147,27 +147,6 @@ A complete historical record stored on-chain.
 
 Oracle panel integrated directly into UI.
 
----
-
-# 🎥 DEMO VIDEO GUIDE (FOR JUDGES)
-
-Record the following in order:
-
-```
-1. Connect wallet  
-2. Select asset  
-3. Run AI valuation  
-4. Approve PMT  
-5. Stake & submit prediction  
-6. Open Oracle Admin → input true value  
-7. Call “Settle” → reward appears  
-8. Claim rewards  
-9. Show prediction history + accuracy  
-```
-
-This demonstrates full end-to-end functionality.
-
----
 
 # 🔮 FUTURE IMPLEMENTATION (MAINNET MIGRATION)
 
@@ -210,3 +189,4 @@ This is not a demo — it's a complete, functioning blockchain product deployed 
 ---
 
  
+
